@@ -1,0 +1,134 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Vincent Terrasi"
+date: "Monday, May 17, 2015"
+output: html_document
+---
+
+##Intro
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+##Data
+
+The training data for this project are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+```{r}
+download.file('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv', 'training.csv', method ="curl")
+training <- read.csv('training.csv', na.strings = c("","NA","#DIV/0!"))
+
+download.file('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv', 'testing.csv', method ="curl")
+testing <- read.csv('testing.csv', na.strings = c("","NA","#DIV/0!"))
+```
+
+```{r}
+dim(training)
+
+names(training)
+
+```
+
+I need to clean the data set
+
+
+##Cleaning Data
+
+```{r}
+library(caret)
+
+dVar <- grep("X|user_name|cvtd_timestamp", names(training))
+training <- training[, -dVar]
+
+nzVar <- nearZeroVar(training)
+training <- training[, -nzVar]
+
+#Patch for forest random, we remove all NA
+allNA <- apply(training, 2, function(x) {
+  sum(is.na(x))
+})
+training <- training[, which(allNA == 0)]
+```
+
+##Training Set
+
+I create a data partition with 80% of training data.
+
+```{r}
+set.seed(1234)
+data     <- createDataPartition(training$classe, p = 0.8, list = FALSE)
+train    <- training[data, ]
+test     <- training[-data, ]
+```
+
+
+##Random Forest Model
+
+I am going to try with the Random Forest Model
+
+```{r}
+library(randomForest)
+
+model <- randomForest(classe ~ ., data = train, ntrees = 10)
+```
+
+##Model Validation
+
+###Training
+
+```{r}
+pTraining <- predict(model, training)
+print(confusionMatrix(pTraining, training$classe))
+```
+
+The model RF performs very good.
+
+###Testing Set
+
+####Cleaning
+
+```{r}
+dVar <- grep("X|user_name|cvtd_timestamp", names(testing))
+testing <- testing[, -dVar]
+nzVar <- nearZeroVar(testing)
+testing <- testing[, -nzVar]
+allNA <- apply(testing, 2, function(x) {
+  sum(is.na(x))
+})
+testing <- testing[, which(allNA == 0)]
+
+testing$classe <- testing$problem_id 
+testing$problem_id <- NULL
+```
+
+####Prediction
+```{r}
+pTest <- predict(model, testing)
+# bug to print COnfusion Matrix !! 
+#print(confusionMatrix(pTest, testing$classe))
+```
+
+I have a bug to print confusion matrix so I am going to generate all files for Prediction Assignment Submission
+ 
+
+```{r}
+answers <- as.vector(pTest)
+
+pml_write_files = function(x) {
+    n = length(x)
+    for (i in 1:n) {
+        filename = paste0("problem_id_", i, ".txt")
+        write.table(x[i], file = filename, quote = FALSE, row.names = FALSE, 
+            col.names = FALSE)
+    }
+}
+
+pml_write_files(answers)
+```
+
+All files are validated so answers are very good
